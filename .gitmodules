@@ -1,0 +1,4 @@
+[submodule "hare-sdl2"]
+	path = hare-sdl2
+	url = https://git.sr.ht/~sircmpwn/hare-sdl2
+	branch = master

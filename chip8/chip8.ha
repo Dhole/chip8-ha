@@ -1,3 +1,4 @@
+use io;
 use fmt;
 use math::random;
 
@@ -41,6 +42,19 @@ export type ErrPcOutOfBounds = struct {
 };
 export type ErrDebug = void;
 export type Error = !(ErrInvalidOp | ErrRomTooBig | ErrPcOutOfBounds | ErrDebug);
+
+export fn fmterror(h: io::handle, err: Error) (io::error | size) = {
+	match (err) {
+	case let e: ErrInvalidOp =>
+		return fmt::fprintf(h, "invalid op {:2x} {:2x}", e.words[0], e.words[1]);
+	case let e: ErrRomTooBig =>
+		return fmt::fprintf(h, "room too big, size={}", e.rom_size);
+	case let e: ErrPcOutOfBounds =>
+		return fmt::fprintf(h, "pc out of bounds, pc={}", e.pc);
+	case let e: ErrDebug => 
+		return fmt::fprintf(h, "debug");
+	};
+};
 
 // Returns low nibble from byte
 fn lo_nib(b: u8) u8 = {

@@ -1,4 +1,5 @@
 use os;
+use fs;
 use fmt;
 use getopt;
 use strconv;
@@ -11,15 +12,27 @@ use sdl;
 // 	SDL_Keycode };
 use chip8;
 
+type empty_rom = !void;
+
 export fn main() void = {
 	const res = run();
 	defer run_deinit();
 	match (res) {
+	case empty_rom =>
+		fmt::errorfln("ROM is empty")!;
 	case let err: sdl::error =>
 		// Print the error before terminating because otherwise
 		// SDL_Quit will free the error string.
 		fmt::errorfln("SDL2 error: {}", sdl::strerror(err))!;
 		os::exit(-1);
+	case let err: chip8::Error =>
+		fmt::fprintf(os::stderr, "Chip8 error: ")!;
+		chip8::fmterror(os::stderr, err)!;
+		fmt::errorfln("")!;
+	case let err: io::error =>
+		fmt::errorfln("io::error: {}", io::strerror(err))!;
+	case let err: fs::error =>
+		fmt::errorfln("fs::error: {}", fs::strerror(err))!;
 	case void => void;
 	};
 };
@@ -75,7 +88,7 @@ fn square_wave_callback(userdata: nullable *opaque, stream: *u8, len_: int) void
 	};
 };
 
-fn run() (void | sdl::error | io::EOF) = {
+fn run() (void | empty_rom | sdl::error | chip8::Error | fs::error | io::error) = {
 	const cmd = getopt::parse(os::args,
 		"chip8-ha",
 		('s', "scale", "Window scaling factor"),
@@ -99,17 +112,17 @@ fn run() (void | sdl::error | io::EOF) = {
 	};
 	const path = cmd.args[0];
 
-	const file = os::open(path)!;
+	const file = os::open(path)?;
 	defer io::close(file)!;
 
 	let rom = alloc([0u8...], chip8::MEM_SIZE);
 	defer free(rom);
 	let rom_size = 0z;
 	for (true) {
-		match (io::read(file, rom[rom_size..chip8::MEM_SIZE])!) {
+		match (io::read(file, rom[rom_size..chip8::MEM_SIZE])?) {
 		case io::EOF =>
 			if (rom_size == 0) {
-				return io::EOF;
+				return empty_rom;
 			};
 			break;
 		case let n: size =>
@@ -118,9 +131,9 @@ fn run() (void | sdl::error | io::EOF) = {
 	};
 
 	let c8 = chip8::chip8(0);
-	chip8::load_rom(&c8, rom[..rom_size])!;
+	chip8::load_rom(&c8, rom[..rom_size])?;
 
-	sdl::init(sdl::init_flags::VIDEO | sdl::init_flags::AUDIO)!;
+	sdl::init(sdl::init_flags::VIDEO | sdl::init_flags::AUDIO)?;
 
 	const freq: int = 44100;
 	const square_wave_state = square_wave {
@@ -140,7 +153,7 @@ fn run() (void | sdl::error | io::EOF) = {
 		userdata = &square_wave_state,
 	};
 	const _obtained = spec; // copy to be overwritten
-	const audio_dev = sdl::open_audio_device(void, 0, &spec, &_obtained, 0)!;
+	const audio_dev = sdl::open_audio_device(void, 0, &spec, &_obtained, 0)?;
 	defer sdl::close_audio_device(audio_dev);
 
 	const win = sdl::create_window("Chip8-ha by Dhole",
@@ -182,7 +195,7 @@ fn run() (void | sdl::error | io::EOF) = {
 			keypad &= ~keycode_to_mask(key.keysym.sym: sdl::key_code);
 		case => break;
 		};
-		chip8::frame(&c8, keypad)!;
+		chip8::frame(&c8, keypad)?;
 		if (c8.tone) {
 			sdl::pause_audio_device(audio_dev, false);
 		} else {

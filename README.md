@@ -7,4 +7,4 @@ make run ROM=ROM_PATH
 
 # Status
 
-Only missing audio implementation, which the current sdl2 wrapper doesn't seem to include.
+Feature complete!

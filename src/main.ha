@@ -5,56 +5,56 @@ use strconv;
 use io;
 use time;
 
-use sdl2;
-use sdl2::{ SDL_GameControllerAxis, SDL_EventType, SDL_RendererFlags,
-	SDL_WindowFlags, SDLPixelFormatValues, SDL_TextureAccess, SDL_Texture,
-	SDL_Keycode };
+use sdl;
+// use sdl2::{ SDL_GameControllerAxis, SDL_EventType, SDL_RendererFlags,
+// 	SDL_WindowFlags, SDLPixelFormatValues, SDL_TextureAccess, SDL_Texture,
+// 	SDL_Keycode };
 use chip8;
 
 export fn main() void = {
 	const res = run();
 	defer run_deinit();
 	match (res) {
-	case let err: sdl2::error =>
+	case let err: sdl::error =>
 		// Print the error before terminating because otherwise
 		// SDL_Quit will free the error string.
-		fmt::errorfln("SDL2 error: {}", sdl2::strerror(err))!;
+		fmt::errorfln("SDL2 error: {}", sdl::strerror(err))!;
 		os::exit(-1);
 	case void => void;
 	};
 };
 
 fn run_deinit() void = {
-	sdl2::SDL_Quit();
+	sdl::quit();
 };
 
 fn usage() never = {
 	fmt::fatalf("usage: {} [-s --scale SCALE] ROM_PATH", os::args[0]);
 };
 
-fn keycode_to_mask(keycode: SDL_Keycode) u16 = {
+fn keycode_to_mask(keycode: sdl::key_code) u16 = {
 	switch (keycode) {
-	case SDL_Keycode::ONE => return 1 << 0x1;
-	case SDL_Keycode::TWO => return 1 << 0x2;
-	case SDL_Keycode::THREE => return 1 << 0x3;
-	case SDL_Keycode::FOUR => return 1 << 0xc;
-	case SDL_Keycode::q => return 1 << 0x4;
-	case SDL_Keycode::w => return 1 << 0x5;
-	case SDL_Keycode::e => return 1 << 0x6;
-	case SDL_Keycode::r => return 1 << 0xd;
-	case SDL_Keycode::a => return 1 << 0x7;
-	case SDL_Keycode::s => return 1 << 0x8;
-	case SDL_Keycode::d => return 1 << 0x9;
-	case SDL_Keycode::f => return 1 << 0xe;
-	case SDL_Keycode::z => return 1 << 0xa;
-	case SDL_Keycode::x => return 1 << 0x0;
-	case SDL_Keycode::c => return 1 << 0xb;
-	case SDL_Keycode::v => return 1 << 0xf;
+	case sdl::key_code::_1 => return 1 << 0x1;
+	case sdl::key_code::_2 => return 1 << 0x2;
+	case sdl::key_code::_3 => return 1 << 0x3;
+	case sdl::key_code::_4 => return 1 << 0xc;
+	case sdl::key_code::q => return 1 << 0x4;
+	case sdl::key_code::w => return 1 << 0x5;
+	case sdl::key_code::e => return 1 << 0x6;
+	case sdl::key_code::r => return 1 << 0xd;
+	case sdl::key_code::a => return 1 << 0x7;
+	case sdl::key_code::s => return 1 << 0x8;
+	case sdl::key_code::d => return 1 << 0x9;
+	case sdl::key_code::f => return 1 << 0xe;
+	case sdl::key_code::z => return 1 << 0xa;
+	case sdl::key_code::x => return 1 << 0x0;
+	case sdl::key_code::c => return 1 << 0xb;
+	case sdl::key_code::v => return 1 << 0xf;
 	case => return 0;
 	};
 };
 
-fn run() (void | sdl2::error | io::EOF) = {
+fn run() (void | sdl::error | io::EOF) = {
 	const cmd = getopt::parse(os::args,
 		"chip8-ha",
 		('s', "scale", "Window scaling factor"),
@@ -99,29 +99,28 @@ fn run() (void | sdl2::error | io::EOF) = {
 	let c8 = chip8::chip8(0);
 	chip8::load_rom(&c8, rom[..rom_size])!;
 
-	sdl2::SDL_Init(sdl2::SDL_INIT_VIDEO
-		| sdl2::SDL_INIT_AUDIO)!;
+	sdl::init(sdl::init_flags::VIDEO | sdl::init_flags::AUDIO)!;
 
 	// TODO: Audio
 	// const device = 
 
-	const win = sdl2::SDL_CreateWindow("Chip8-ha by Dhole",
-		sdl2::SDL_WINDOWPOS_CENTERED, sdl2::SDL_WINDOWPOS_CENTERED,
+	const win = sdl::create_window("Chip8-ha by Dhole",
+		sdl::WINDOWPOS_CENTERED, sdl::WINDOWPOS_CENTERED,
 		chip8::SCREEN_WIDTH: int * scale, chip8::SCREEN_HEIGTH: int * scale,
-		SDL_WindowFlags::OPENGL)?;
-	defer sdl2::SDL_DestroyWindow(win);
+		sdl::window_flags::OPENGL)?;
+	defer sdl::destroy_window(win);
 
-	const render = sdl2::SDL_CreateRenderer(win, -1, SDL_RendererFlags::NONE)?;
-	defer sdl2::SDL_DestroyRenderer(render);
-	sdl2::SDL_SetRenderDrawColor(render, 0, 0, 0, 255)?;
-	sdl2::SDL_RenderClear(render)?;
-	sdl2::SDL_RenderPresent(render);
+	const render = sdl::create_renderer(win, -1, sdl::renderer_flags::NONE)?;
+	defer sdl::destroy_renderer(render);
+	sdl::set_render_draw_color(render, 0, 0, 0, 255)?;
+	sdl::render_clear(render)?;
+	sdl::render_present(render);
 
-	const texture = sdl2::SDL_CreateTexture(render,
-		SDLPixelFormatValues::SDL_PIXELFORMAT_RGB24,
-		SDL_TextureAccess::SDL_TEXTUREACCESS_STREAMING,
+	const texture = sdl::create_texture(render,
+		sdl::pixel_format_value::RGB24,
+		sdl::texture_access::STREAMING: int,
 		chip8::SCREEN_WIDTH: int, chip8::SCREEN_HEIGTH: int)?;
-	defer sdl2::SDL_DestroyTexture(texture);
+	defer sdl::destroy_texture(texture);
 
 	const frame_duration = (1000000000i64 / 60): time::duration;
 	// const frame_duration = (1000000000i64 / 1): time::duration;
@@ -131,18 +130,18 @@ fn run() (void | sdl2::error | io::EOF) = {
 	defer free(fb);
 	let timestamp = time::now(time::clock::MONOTONIC);
 	for (true) {
-		let ev = sdl2::event { ... };
-		for (sdl2::SDL_PollEvent(&ev)? == 1) switch (ev.event_type) {
-		case SDL_EventType::QUIT =>
+		for (true) match (sdl::poll_event()) {
+		case void => break;
+		case sdl::quit_requested =>
 			return;
-		case SDL_EventType::KEYDOWN =>
-			if (ev.key.keysym.sym == SDL_Keycode::ESCAPE) {
+		case let key: sdl::key_pressed =>
+			if (key.keysym.sym: sdl::key_code == sdl::key_code::ESCAPE) {
 				return;
 			};
-			keypad |= keycode_to_mask(ev.key.keysym.sym);
-		case SDL_EventType::KEYUP =>
-			keypad &= ~keycode_to_mask(ev.key.keysym.sym);
-		case => void;
+			keypad |= keycode_to_mask(key.keysym.sym: sdl::key_code);
+		case let key: sdl::key_released =>
+			keypad &= ~keycode_to_mask(key.keysym.sym: sdl::key_code);
+		case => break;
 		};
 		chip8::frame(&c8, keypad)!;
 		// TODO
@@ -155,7 +154,7 @@ fn run() (void | sdl2::error | io::EOF) = {
 
 		let pitch: int = 0;
 		let pixels: nullable *u8 = null;
-		sdl2::SDL_LockTexture(texture, null, &pixels: nullable * nullable *opaque, &pitch)?;
+		sdl::lock_texture(texture, null, &pixels: **opaque, &pitch)?;
 		let pixels = pixels: *u8;
 		for (let y = 0u; y < chip8::SCREEN_HEIGTH; y += 1) {
 			for (let x = 0u; x < chip8::SCREEN_WIDTH / 8; x += 1) {
@@ -177,16 +176,16 @@ fn run() (void | sdl2::error | io::EOF) = {
 				};
 			};
 		};
-		sdl2::SDL_UnlockTexture(texture);
+		sdl::unlock_texture(texture);
 
-		sdl2::SDL_RenderClear(render)?;
-		sdl2::SDL_RenderCopy(render, texture, null, null)?;
-		sdl2::SDL_RenderPresent(render);
+		sdl::render_clear(render)?;
+		sdl::render_copy(render, texture, null, null)?;
+		sdl::render_present(render);
 
 		const now = time::now(time::clock::MONOTONIC);
 		const sleep_dur = frame_duration - time::diff(timestamp, now);
 		// fmt::printf("sleep_dur: {}\n", sleep_dur)!;
-		sdl2::SDL_Delay((sleep_dur / 1000000): u32);
+		sdl::delay((sleep_dur / 1000000): u32);
 		// time::sleep(sleep_dur);
 		timestamp = now;
 	};

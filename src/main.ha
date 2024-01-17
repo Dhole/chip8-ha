@@ -54,6 +54,27 @@ fn keycode_to_mask(keycode: sdl::key_code) u16 = {
 	};
 };
 
+type square_wave = struct {
+	phase_inc: f32,
+	phase: f32,
+	volume: f32,
+};
+
+fn square_wave_callback(userdata: nullable *opaque, stream: *u8, len_: int) void = {
+	let state = userdata: *square_wave;
+	for (let i = 0z; i < len_: size / size(f32); i += 1) {
+		const v = if (state.phase <= 0.5)
+			state.volume
+		else
+			-state.volume;
+		*((stream: uintptr + i: uintptr * size(f32)): *f32) = v;
+		state.phase = (state.phase + state.phase_inc);
+		if (state.phase > 1.0) {
+			state.phase -= 1.0;
+		};
+	};
+};
+
 fn run() (void | sdl::error | io::EOF) = {
 	const cmd = getopt::parse(os::args,
 		"chip8-ha",
@@ -101,8 +122,26 @@ fn run() (void | sdl::error | io::EOF) = {
 
 	sdl::init(sdl::init_flags::VIDEO | sdl::init_flags::AUDIO)!;
 
-	// TODO: Audio
-	// const device = 
+	const freq: int = 44100;
+	const square_wave_state = square_wave {
+		phase_inc = 440.0 / freq: f32,
+		phase = 0.0,
+		volume = 0.25,
+	};
+	const spec = sdl::audio_spec {
+		freq = freq,
+		format = sdl::audio_format::F32,
+		channels = 1,
+		silence = 0,
+		samples = 0,
+		padding = 0,
+		size_ = 0,
+		callback = &square_wave_callback,
+		userdata = &square_wave_state,
+	};
+	const _obtained = spec; // copy to be overwritten
+	const audio_dev = sdl::open_audio_device(void, 0, &spec, &_obtained, 0)!;
+	defer sdl::close_audio_device(audio_dev);
 
 	const win = sdl::create_window("Chip8-ha by Dhole",
 		sdl::WINDOWPOS_CENTERED, sdl::WINDOWPOS_CENTERED,
@@ -144,12 +183,11 @@ fn run() (void | sdl::error | io::EOF) = {
 		case => break;
 		};
 		chip8::frame(&c8, keypad)!;
-		// TODO
-		// if (c8.tone) {
-		// 	device.resume();
-		// } else {
-		// 	device.pause();
-		// };
+		if (c8.tone) {
+			sdl::pause_audio_device(audio_dev, false);
+		} else {
+			sdl::pause_audio_device(audio_dev, true);
+		};
 		// fmt::printf("fb: {} {} {} {} {}\n", c8.fb[0], c8.fb[1], c8.fb[2], c8.fb[3], c8.fb[4])!;
 
 		let pitch: int = 0;
